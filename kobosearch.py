@@ -33,7 +33,7 @@ def search_kobo(db_path: str, pattern: str) -> List[Tuple[str, str]]:
 
         # ContentType 6 is usually the main entry for a book (not chapters)
         query = """
-            SELECT Title, Attribution
+            SELECT ContentID, Title, Attribution
             FROM content
             WHERE ContentType = 6
             AND (Title REGEXP ? OR Attribution REGEXP ?)
@@ -72,11 +72,14 @@ def main(prg_name: str) -> None:
     else:
         print(f"[+] {prg_name}: Found {len(matches)} matches:\n")
         # Print results in a clean format
-        header = f"{'Title':<50} | {'Author':<30}"
+        header = f"{'ID':<40} | {'Title':<40} | {'Author':<25}"
         print(header)
         print("-" * len(header))
-        for title, author in matches:
-            print(f"{str(title)[:48]:<50} | {str(author)[:30]:<30}")
+        for cid, title, author in matches:
+            display_id = str(cid).replace("file:///mnt/onboard/", "")
+            print(
+                f"{display_id[:38]:<40} | {str(title)[:38]:<40} | {str(author)[:25]:<25}"
+            )
 
 
 if __name__ == "__main__":
