@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #
 import argparse
+import base64
 import os
 import re
 import shutil
@@ -14,6 +15,14 @@ def regex_match(expr: str, item: str) -> bool:
     if item is None:
         return False
     return bool(re.search(expr, item, re.IGNORECASE))
+
+
+def get_kobo_cache_name(content_id: str) -> str:
+    """Encodes ContentID to the format Kobo uses for the filesystem."""
+    # Kobo uses standard Base64 but often strips padding or has specific naming
+    encoded = base64.b64encode(content_id.encode("utf-8")).decode("utf-8")
+    # Remove characters that are problematic for some filesystems if necessary
+    return encoded.replace("/", "_").replace("+", "-").rstrip("=")
 
 
 def get_target_cache_ids(db_path: str, pattern: str) -> List[Tuple[str, str]]:
@@ -69,12 +78,16 @@ def main(prg_name: str) -> None:
         # For sideloaded books, it's often a simplified string.
         # We search for a directory name that exists within the ContentID string.
 
+        b64_cid = get_kobo_cache_name(cid)
         found_in_cache = False
+
         for foldername in os.listdir(cache_base):
             folder_path = os.path.join(cache_base, foldername)
 
-            # Logic: If the cache folder name is part of the book's unique ID
-            if os.path.isdir(folder_path) and foldername in cid:
+            # Match if the folder is the encoded ID OR a substring of the raw ID
+            if os.path.isdir(folder_path) and (
+                foldername == b64_cid or foldername in cid
+            ):
                 found_in_cache = True
                 if args.dry_run:
                     print(
