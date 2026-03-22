@@ -1,11 +1,20 @@
 #!/usr/bin/env python
 #
 import argparse
+import base64
 import os
 import shutil
 import sqlite3
 import sys
 from typing import List, Set
+
+
+def get_kobo_cache_name(content_id: str) -> str:
+    """Encodes ContentID to the format Kobo uses for the filesystem."""
+    # Kobo uses standard Base64 but often strips padding or has specific naming
+    encoded = base64.b64encode(content_id.encode("utf-8")).decode("utf-8")
+    # Remove characters that are problematic for some filesystems if necessary
+    return encoded.replace("/", "_").replace("+", "-").rstrip("=")
 
 
 def get_active_book_ids(prg_name: str, db_path: str) -> Set[str]:
@@ -31,18 +40,23 @@ def get_active_book_ids(prg_name: str, db_path: str) -> Set[str]:
 def find_orphans(prg_name: str, cache_path: str, active_ids: Set[str]) -> List[str]:
     """Returns cached images without id in the database."""
     orphans: List[str] = []
+
+    # Generate a set of all possible valid folder names
+    valid_folder_names = set()
+    for aid in active_ids:
+        valid_folder_names.add(aid)
+        valid_folder_names.add(get_kobo_cache_name(aid))
+
     if not os.path.exists(cache_path):
-        print(
-            f"{prg_name}: Cache directory not found at '{cache_path}'", file=sys.stderr
-        )
         return []
 
-    # Iterate through the hex-named subdirectories in .kobo-images
     for item in os.listdir(cache_path):
         item_path = os.path.join(cache_path, item)
         if os.path.isdir(item_path):
-            # If the folder name isn't associated with an active ContentID
-            if not any(item in aid for aid in active_ids):
+            # Check against our expanded set of valid names
+            if item not in valid_folder_names and not any(
+                item in aid for aid in active_ids
+            ):
                 orphans.append(item_path)
     return orphans
 
